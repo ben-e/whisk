@@ -14,6 +14,11 @@
 #' @param digits Same as \code{knitr::kable}, maximum number of digits for
 #' numeric columns, passed to \code{base::round()}. However,\code{whisk} rounds
 #' prior to passing to kable.
+#' @param use_stars Use stars to indicate signficance?
+#' @param levels decreasing significance levels; default:
+#' \code{c(0.01, 0.05, 0.1)}
+#' @param stars significance indicators for each level, default:
+#' \code{c("***", "**", "*")}
 #' @param ... Extra arguments to be passed to kable.
 #'
 #' @return A kable table that can be augmented using kableExtra.
@@ -23,14 +28,18 @@
 #'
 #' @export
 whisk <- function(m, col.names = NULL, model.numbers = T, format = "markdown",
-                  align = "l", booktabs = T, digits = 2, ...) {
+                  align = "l", booktabs = T, digits = 2,
+                  use_stars = T, levels = c(0.01, 0.05, 0.1),
+                  stars = c("***", "**", "*"), ...) {
   m %>%
-    whip(digits, format) %>%
+    whip(digits, format, use_stars, levels, stars) %>%
     {if(format == 'latex') mutate_all(., linebreak) else .} %>%
     kable(format = format, booktabs = booktabs, digits = digits, escape = F,
           col.names = c("", {if(model.numbers) paste0("(", 1:nrow(m), ")") else rep("", nrow(m))}),
           align = align, ...) %>%
     {if(!is.null(col.names) & format == "latex") add_header_above(., col.names, align = align, line = F) else .} %>%
+    {if(use_stars & format == "latex") footnote(., general = paste0(paste0(stars, "<", levels), collapse = "; "),
+                                                    general_title = "") else .} %>%
     {if(format == 'latex') row_spec(., length(unique(unlist(map(m$model, ~ .x$term)))), hline_after = T) else .}
 }
 
@@ -38,7 +47,8 @@ whisk <- function(m, col.names = NULL, model.numbers = T, format = "markdown",
 #'
 #' Internal function to mutate a data.frame (as specified in
 #' \code{whisk::whisk}) into a dataframe shaped like a stargazer table.
-whip <- function(m, digits, format) {
+whip <- function(m, digits, format, use_stars = T, levels = c(0.01, 0.05, 0.1),
+                 stars = c("***", "**", "*")) {
   m %>%
     # round all numeric columns that are not included in model
     mutate_if(is.numeric, funs(round(., digits = digits))) %>%
@@ -47,7 +57,7 @@ whip <- function(m, digits, format) {
       model = map(model, ~ mutate(.x,
                       estimate = round(estimate, digits),
                       std.error = round(std.error, digits),
-                      p.value = p_to_stars(p.value),
+                      p.value = ifelse(use_stars, p_to_stars(p.value, levels, stars), ""),
                       estimate = paste0(estimate, p.value,
                                         ifelse(format == "latex", "\n", " "),
                                         "(", std.error, ")")
