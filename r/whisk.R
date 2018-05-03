@@ -33,21 +33,47 @@ whisk <- function(m, col.names = NULL, model.numbers = T, format = "markdown",
                   stars = c("***", "**", "*"), ...) {
   m %>%
     whip(digits, format, use_stars, levels, stars) %>%
-    {if(format == 'latex') mutate_all(., linebreak) else .} %>%
+    {
+      if(format == 'latex')
+        mutate_all(., linebreak)
+      else
+        .
+    } %>%
     kable(format = format, booktabs = booktabs, digits = digits, escape = F,
-          col.names = c("", {if(model.numbers) paste0("(", 1:nrow(m), ")") else rep("", nrow(m))}),
+          col.names = c("", {
+            if(model.numbers)
+              paste0("(", 1:nrow(m), ")")
+            else
+              rep("", nrow(m))
+          }),
           align = align, ...) %>%
-    {if(!is.null(col.names) & format == "latex") add_header_above(., col.names, align = align, line = F) else .} %>%
-    {if(use_stars & format == "latex") footnote(., general = paste0(paste0(stars, "<", levels), collapse = "; "),
-                                                    general_title = "") else .} %>%
-    {if(format == 'latex') row_spec(., length(unique(unlist(map(m$model, ~ .x$term)))), hline_after = T) else .}
+          {
+            if(!is.null(col.names) & format %in% c("html", "latex"))
+              add_header_above(., col.names, align = align, line = F)
+            else
+              .
+          } %>% {
+            if(use_stars & format %in% c("html", "latex"))
+              footnote(.,
+                       general = paste0(paste0(stars, "<", levels),
+                                        collapse = "; "),
+                       general_title = "")
+            else
+              .
+          } %>% {
+            if(format %in% c("html", "latex"))
+              row_spec(., length(unique(unlist(map(m$model, ~ .x$term)))),
+                       hline_after = T)
+            else .
+            }
 }
 
 #' Produce stargazer-like data.frame from tidied models
 #'
 #' Internal function to mutate a data.frame (as specified in
 #' \code{whisk::whisk}) into a dataframe shaped like a stargazer table.
-whip <- function(m, digits, format, use_stars = T, levels = c(0.01, 0.05, 0.1),
+whip <- function(m, digits = 2, format = "latex",
+                 use_stars = T, levels = c(0.01, 0.05, 0.1),
                  stars = c("***", "**", "*")) {
   m %>%
     # round all numeric columns that are not included in model
@@ -55,17 +81,17 @@ whip <- function(m, digits, format, use_stars = T, levels = c(0.01, 0.05, 0.1),
     mutate(
       model_id = 1:n(),
       model = map(model, ~ mutate(.x,
-                      estimate = round(estimate, digits),
-                      std.error = round(std.error, digits),
-                      p.value = ifelse(use_stars, p_to_stars(p.value, levels, stars), ""),
-                      estimate = paste0(estimate, p.value,
-                                        ifelse(format == "latex", "\n", " "),
-                                        "(", std.error, ")")
-                    ) %>%
-                    select(term, estimate) %>%
-                    gather(stat, val, -term) %>%
-                    select(-stat) %>%
-                    spread(term, val))
+                                  estimate = round(estimate, digits),
+                                  std.error = round(std.error, digits),
+                                  p.value = ifelse(use_stars, p_to_stars(p.value, levels, stars), ""),
+                                  estimate = paste0(estimate, p.value,
+                                                    ifelse(format %in% c("latex", "html"), "\n", " "),
+                                                    "(", std.error, ")")
+      ) %>%
+        select(term, estimate) %>%
+        gather(stat, val, -term) %>%
+        select(-stat) %>%
+        spread(term, val))
     ) %>%
     unnest() %>%
     gather(term, val, -model_id) %>%
