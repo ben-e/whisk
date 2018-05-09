@@ -65,7 +65,7 @@ whisk <- function(m, col.names = NULL, model.numbers = T, format = "markdown",
               row_spec(., length(unique(unlist(map(m$model, ~ .x$term)))),
                        hline_after = T)
             else .
-            }
+          }
 }
 
 #' Produce stargazer-like data.frame from tidied models
@@ -76,17 +76,21 @@ whip <- function(m, digits = 2, format = "latex",
                  use_stars = T, levels = c(0.01, 0.05, 0.1),
                  stars = c("***", "**", "*")) {
   m %>%
+    # groups will screw up whip, preferably the user will ungroup first, but
+    # just in case
+    ungroup() %>%
     # round all numeric columns that are not included in model
     mutate_if(is.numeric, funs(round(., digits = digits))) %>%
     mutate(
       model_id = 1:n(),
-      model = map(model, ~ mutate(.x,
-                                  estimate = round(estimate, digits),
-                                  std.error = round(std.error, digits),
-                                  p.value = ifelse(use_stars, p_to_stars(p.value, levels, stars), ""),
-                                  estimate = paste0(estimate, p.value,
-                                                    ifelse(format %in% c("latex", "html"), "\n", " "),
-                                                    "(", std.error, ")")
+      model = map(model, ~ mutate(
+        .x,
+        estimate = round(estimate, digits),
+        std.error = round(std.error, digits),
+        p.value = ifelse(use_stars, p_to_stars(p.value, levels, stars), ""),
+        estimate = paste0(estimate, p.value,
+                          ifelse(format %in% c("latex", "html"), "\n", " "),
+                          "(", std.error, ")")
       ) %>%
         select(term, estimate) %>%
         gather(stat, val, -term) %>%
